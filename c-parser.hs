@@ -58,7 +58,7 @@ factorList val xs = (val,xs)
 factor :: String -> (AST,String)
 factor ('(':xs) =
   let (val,rest) = expr xs
-  in if head rest == ')'
+  in if succToken rest ')'
     then (val,tail rest)
     else (val,('(':xs))
 factor xs = 
@@ -95,7 +95,7 @@ boolList val xs = expr xs
 assign :: String -> (AST,String)
 assign xs =
   let (val,rest) = variable xs
-  in if head rest == '='
+  in if succToken rest '='
     then let (val1,rest1) = expr $ tail rest
       in ((Assign val val1), rest1)
     else (val,rest)
@@ -120,7 +120,7 @@ validChar x = x `elem` ['A'..'Z'] || x `elem` ['a'..'z'] || x `elem` ['0'..'9']
 PROBLEMA:
 Catena di dichiarazioni.
 Se ho tante dichiarazioni come richiamare la funzione
-'declaratio' a "catena"?
+'declaration' a "catena"?
 Termina con ';', si confonde con gli altri statement!
 
 -}
@@ -129,9 +129,12 @@ declaration :: String -> (AST,String)
 declaration xs =
   let (val,rest) = typeVar xs
       (val1, rest1) = variable rest
-  in if rest1 /= [] && head rest1 == ';'
+  in if succToken rest1 ';'
     then (Decl val val1, tail rest1)
-    else (Empty,xs)
+    else if succToken rest1 '='
+      then let (val2,rest2) = assign rest
+          in (Decl val val2, tail rest2)
+      else (Empty,xs)
 
 typeVar :: String -> (AST,String)
 typeVar xs =
@@ -142,12 +145,17 @@ typeVar xs =
 
 checkToken xs ys = and $ zipWith (==) xs ys
 
+succToken [] _ = False
+succToken xs t 
+  | head xs == t = True
+  | otherwise    = False
+
 ----- Cond
 
 condition :: String -> (AST,String)
 condition xs =
   let (val,rest) = takeToken (filter (checkToken xs) condToken) xs
-  in if rest /= [] && head rest == '('
+  in if succToken rest '('
     then 
       let (val1,rest1) = boolExpr (tail rest)
       in if head rest1 == ')'
@@ -166,10 +174,10 @@ takeToken ts xs = (head ts, drop ((length.head) ts) xs)
 loop :: String -> (AST,String)
 loop xs =
   let (val, rest) = takeToken (filter (checkToken xs) loopToken) xs
-  in if rest /= [] && head rest == '('
+  in if succToken rest '('
     then 
       let (val1,rest1) = boolExpr (tail rest)
-      in if head rest1 == ')'
+      in if succToken rest1 ')'
         then
           let (val2,rest2) = compose (tail rest1)
           in (Loop val1 val2, rest2)
@@ -182,7 +190,7 @@ loop xs =
 compose :: String -> (AST,String)
 compose ('{':xs) =
   let (val,rest) = stmtChain xs
-  in if head rest == '}'
+  in if succToken rest '}'
     then (val,tail rest)
     else (val,rest)
 compose xs = (Empty,xs)
@@ -193,16 +201,6 @@ stmtChain :: String -> (AST,String)
 stmtChain xs =
   let (val,rest) = stmt xs
   in stmtList val rest
-
-{-
-stmtList val ('}':xs) =
-  (val,'}':xs)
-stmtList val [] =
-  (val,[])
-stmtList val xs =
-  let (val1, rest) = stmt xs
-  in stmtList (Seq val val1) rest
--}
 
 stmtList val (';':'}':xs) =
   (val,'}':xs) 
